@@ -1,4 +1,4 @@
-# Lab 1 👋
+# Lab 2 👋
 
 This is a demo map project that is required to do with Task 1.
 

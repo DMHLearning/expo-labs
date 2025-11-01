@@ -57,7 +57,7 @@ export const MarkersProvider: React.FC<{ children: ReactNode }> = ({ children })
   const addImageToMarker = useCallback((markerId: string, imageUri: string) => {
     setMarkers((prev) =>
       prev.map((marker) =>
-        marker.id === markerId ? { ...marker, images: [...marker.images, imageUri] } : marker
+        marker.id === markerId ? { ...marker, images: [...(marker.images || []), imageUri] } : marker
       )
     );
   }, []);
@@ -66,7 +66,7 @@ export const MarkersProvider: React.FC<{ children: ReactNode }> = ({ children })
     setMarkers((prev) =>
       prev.map((marker) =>
         marker.id === markerId
-          ? { ...marker, images: marker.images.filter((uri) => uri !== imageUri) }
+          ? { ...marker, images: (marker.images || []).filter((uri) => uri !== imageUri) }
           : marker
       )
     );

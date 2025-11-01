@@ -1,22 +1,40 @@
-import React, { useContext, useCallback } from 'react';
+import React, { useContext, useCallback, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Button, FlatList, Image, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { MarkersContext } from '../context/MarkersContext';
+import { DatabaseContext } from '.././context/DatabaseContext';
+import { Marker, MarkerImage } from '.././types';
 
 export default function MarkerDetails() {
   const params = useLocalSearchParams<{ id: string }>();
-  const { id } = params;
+  const id = Number(params.id);
   const router = useRouter();
-  const { getMarkerById, addImageToMarker, removeImageFromMarker } = useContext(MarkersContext)!;
-  
-  const marker = getMarkerById(id);
+  const { getMarkerById, getMarkerImages, addImageToMarker, removeImageFromMarker } = useContext(DatabaseContext)!;
 
-  if (!marker) {
-    Alert.alert('Ошибка', 'Маркер не найден. Возвращаемся на карту.');
-    router.back();
-    return null;
-  }
+  const [marker, setMarker] = useState<Marker | null>(null);
+  const [images, setImages] = useState<MarkerImage[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const loadedMarker = await getMarkerById(id);
+        if (!loadedMarker) {
+          Alert.alert('Ошибка', 'Маркер не найден. Возвращаемся на карту.');
+          router.back();
+          return;
+        }
+        const loadedImages = await getMarkerImages(id);
+        setMarker(loadedMarker);
+        setImages(loadedImages);
+      } catch (err) {
+        Alert.alert('Ошибка', 'Не удалось загрузить данные маркера.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, [id, getMarkerById, getMarkerImages, router]);
 
   const handleAddImage = useCallback(async () => {
     try {
@@ -34,50 +52,71 @@ export default function MarkerDetails() {
       });
 
       if (!result.canceled && result.assets[0].uri) {
-        addImageToMarker(id, result.assets[0].uri);
+        await addImageToMarker(id, result.assets[0].uri);
+        const updatedImages = await getMarkerImages(id);
+        setImages(updatedImages);
       }
     } catch (error) {
       Alert.alert('Ошибка', 'Проблема с выбором изображения.');
       console.error('Ошибка выбора изображения:', error);
     }
-  }, [id, addImageToMarker]);
+  }, [id, addImageToMarker, getMarkerImages]);
 
-  const handleRemoveImage = useCallback((imageUri: string) => {
+  const handleRemoveImage = useCallback((imageId: number) => {
     Alert.alert(
       'Удаление',
       'Вы уверены, что хотите удалить это изображение?',
       [
         { text: 'Отмена', style: 'cancel' },
-        { text: 'Удалить', onPress: () => removeImageFromMarker(id, imageUri) },
+        {
+          text: 'Удалить',
+          onPress: async () => {
+            try {
+              await removeImageFromMarker(id, imageId);
+              const updatedImages = await getMarkerImages(id);
+              setImages(updatedImages);
+            } catch (err) {
+              Alert.alert('Ошибка', 'Не удалось удалить изображение.');
+            }
+          },
+        },
       ]
     );
-  }, [id, removeImageFromMarker]);
+  }, [id, removeImageFromMarker, getMarkerImages]);
 
   const handleBack = () => {
     router.back();
   };
+
+  if (loading || !marker) {
+    return (
+      <View style={styles.container}>
+        <Text>Загрузка...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Детали маркера</Text>
       <Text>Широта: {marker.latitude.toFixed(6)}</Text>
       <Text>Долгота: {marker.longitude.toFixed(6)}</Text>
-      
+
       <Text style={styles.subtitle}>Изображения:</Text>
       <FlatList
-        data={marker.images}
-        keyExtractor={(item) => item}
+        data={images}
+        keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
           <View style={styles.imageContainer}>
-            <Image source={{ uri: item }} style={styles.image} />
-            <Button title="Удалить" onPress={() => handleRemoveImage(item)} color="red" />
+            <Image source={{ uri: item.uri }} style={styles.image} />
+            <Button title="Удалить" onPress={() => handleRemoveImage(item.id)} color="red" />
           </View>
         )}
         ListEmptyComponent={<Text>Нет изображений.</Text>}
       />
       <View style={styles.buttonContainer}>
-          <Button title="Добавить изображение" onPress={handleAddImage} />
-          <Button title="Назад на карту" onPress={handleBack} />
+        <Button title="Добавить изображение" onPress={handleAddImage} />
+        <Button title="Назад на карту" onPress={handleBack} />
       </View>
     </View>
   );
@@ -111,6 +150,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 16,
-    marginBottom: 48
+    marginBottom: 48,
   },
 });

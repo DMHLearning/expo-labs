@@ -1,17 +1,19 @@
-import { StackScreenProps } from '@react-navigation/stack';
-
 export interface Marker {
   id: string;
   latitude: number;
   longitude: number;
-  images: string[];
+  created_at?: string;
+  images?: string[];
+}
+
+export interface MarkerImage {
+  id: number;
+  marker_id: number;
+  uri: string;
+  created_at?: string;
 }
 
 export type RootStackParamList = {
   Index: undefined;
   MarkerDetails: { id: string };
 };
-
-export type MarkerDetailsProps = StackScreenProps<RootStackParamList, 'MarkerDetails'>;
-
-export default MarkerDetailsProps;
