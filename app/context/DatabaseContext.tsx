@@ -1,6 +1,41 @@
-import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import * as SQLite from 'expo-sqlite';
+import * as Notifications from 'expo-notifications';
 import { Marker, MarkerImage } from '../types';
+
+interface ActiveNotification {
+  markerId: string;
+  notificationId: string;
+  timestamp: number;
+}
+
+class NotificationManager {
+  activeNotifications: Map<string, ActiveNotification> = new Map();
+
+  async showNotification(marker: Marker): Promise<void> {
+    if (this.activeNotifications.has(marker.id)) return;
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "Вы рядом с меткой!",
+        body: `Вы находитесь рядом с сохранённой точкой.`,
+      },
+      trigger: null,
+    });
+    this.activeNotifications.set(marker.id, {
+      markerId: marker.id,
+      notificationId,
+      timestamp: Date.now(),
+    });
+  }
+
+  async removeNotification(markerId: string): Promise<void> {
+    const notification = this.activeNotifications.get(markerId);
+    if (notification) {
+      await Notifications.cancelScheduledNotificationAsync(notification.notificationId);
+      this.activeNotifications.delete(markerId);
+    }
+  }
+}
 
 interface DatabaseContextType {
   addMarker: (latitude: number, longitude: number) => Promise<number>;
@@ -10,6 +45,7 @@ interface DatabaseContextType {
   removeImageFromMarker: (markerId: number, imageId: number) => Promise<void>;
   getMarkerById: (id: number) => Promise<Marker | undefined>;
   getMarkerImages: (markerId: number) => Promise<MarkerImage[]>;
+  notificationManager: NotificationManager;
   isLoading: boolean;
   error: Error | null;
 }
@@ -51,6 +87,8 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  const notificationManager = useMemo(() => new NotificationManager(), []);
+
   useEffect(() => {
     initDatabase()
       .then(setDb)
@@ -90,11 +128,13 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     await executeTransaction(async (db) => {
       await db.runAsync('DELETE FROM markers WHERE id = ?;', [id]);
     });
-  }, [executeTransaction]);
+    await notificationManager.removeNotification(id.toString());
+  }, [executeTransaction, notificationManager]);
 
   const getMarkers = useCallback(async (): Promise<Marker[]> => {
     if (!db) return [];
-    return db.getAllAsync<Marker>('SELECT * FROM markers;');
+    const rawMarkers = await db.getAllAsync<{ id: number; latitude: number; longitude: number; created_at?: string }>('SELECT * FROM markers;');
+    return rawMarkers.map(m => ({ ...m, id: m.id.toString() })) as Marker[];
   }, [db]);
 
   const addImageToMarker = useCallback(async (markerId: number, uri: string): Promise<void> => {
@@ -119,8 +159,8 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const getMarkerById = useCallback(async (id: number): Promise<Marker | undefined> => {
     if (!db) return undefined;
-    const marker = await db.getFirstAsync<Marker>('SELECT * FROM markers WHERE id = ?;', [id]);
-    return marker || undefined;
+    const rawMarker = await db.getFirstAsync<{ id: number; latitude: number; longitude: number; created_at?: string }>('SELECT * FROM markers WHERE id = ?;', [id]);
+    return rawMarker ? { ...rawMarker, id: rawMarker.id.toString() } as Marker : undefined;
   }, [db]);
 
   if (error) {
@@ -137,6 +177,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
         removeImageFromMarker,
         getMarkerById,
         getMarkerImages,
+        notificationManager,
         isLoading,
         error,
       }}

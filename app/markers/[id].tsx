@@ -2,14 +2,14 @@ import React, { useContext, useCallback, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Button, FlatList, Image, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { DatabaseContext } from '.././context/DatabaseContext';
-import { Marker, MarkerImage } from '.././types';
+import { DatabaseContext } from '../context/DatabaseContext';
+import { Marker, MarkerImage } from '../types';
 
 export default function MarkerDetails() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = Number(params.id);
   const router = useRouter();
-  const { getMarkerById, getMarkerImages, addImageToMarker, removeImageFromMarker } = useContext(DatabaseContext)!;
+  const { getMarkerById, getMarkerImages, addImageToMarker, removeImageFromMarker, deleteMarker } = useContext(DatabaseContext)!;
 
   const [marker, setMarker] = useState<Marker | null>(null);
   const [images, setImages] = useState<MarkerImage[]>([]);
@@ -84,6 +84,27 @@ export default function MarkerDetails() {
     );
   }, [id, removeImageFromMarker, getMarkerImages]);
 
+  const handleDeleteMarker = useCallback(() => {
+    Alert.alert(
+      'Удаление',
+      'Вы уверены, что хотите удалить этот маркер?',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Удалить',
+          onPress: async () => {
+            try {
+              await deleteMarker(id);
+              router.back();
+            } catch (err) {
+              Alert.alert('Ошибка', 'Не удалось удалить маркер.');
+            }
+          },
+        },
+      ]
+    );
+  }, [id, deleteMarker, router]);
+
   const handleBack = () => {
     router.back();
   };
@@ -109,7 +130,9 @@ export default function MarkerDetails() {
         renderItem={({ item }) => (
           <View style={styles.imageContainer}>
             <Image source={{ uri: item.uri }} style={styles.image} />
-            <Button title="Удалить" onPress={() => handleRemoveImage(item.id)} color="red" />
+            <View style={styles.imageButtonContainer}>
+              <Button title="Удалить" onPress={() => handleRemoveImage(item.id)} color="red" />
+            </View>
           </View>
         )}
         ListEmptyComponent={<Text>Нет изображений.</Text>}
@@ -117,6 +140,9 @@ export default function MarkerDetails() {
       <View style={styles.buttonContainer}>
         <Button title="Добавить изображение" onPress={handleAddImage} />
         <Button title="Назад на карту" onPress={handleBack} />
+      </View>
+      <View style={styles.buttonContainer}>
+        <Button title="Удалить маркер" onPress={handleDeleteMarker} color="red" />
       </View>
     </View>
   );
@@ -146,10 +172,13 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 8,
   },
+  imageButtonContainer: {
+    marginTop: 5,
+  },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 16,
-    marginBottom: 48,
+    marginTop: 0,
+    marginBottom: 32,
   },
 });
