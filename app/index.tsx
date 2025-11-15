@@ -76,7 +76,7 @@ export default function Index() {
       onMapReady={handleMapReady}
       initialRegion={{
         latitude: 34.0522,
-        longitude: -118.2437,
+        longitude: -122.2437,
         latitudeDelta: 0.0922,
         longitudeDelta: 0.0421,
       }}

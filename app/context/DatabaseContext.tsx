@@ -7,7 +7,7 @@ interface DatabaseContextType {
   deleteMarker: (id: number) => Promise<void>;
   getMarkers: () => Promise<Marker[]>;
   addImageToMarker: (markerId: number, uri: string) => Promise<void>;
-  removeImageFromMarker: (markerId: number, imageId: number) => Promise<void>;  // Теперь по imageId
+  removeImageFromMarker: (markerId: number, imageId: number) => Promise<void>;
   getMarkerById: (id: number) => Promise<Marker | undefined>;
   getMarkerImages: (markerId: number) => Promise<MarkerImage[]>;
   isLoading: boolean;
